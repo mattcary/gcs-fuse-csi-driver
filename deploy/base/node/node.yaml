@@ -89,6 +89,8 @@ spec:
               mountPath: /sys
             - name: host-iproute
               mountPath: /etc/iproute2
+            - name: cri
+              mountPath: /run/containerd
         - name: csi-driver-registrar
           securityContext:
             readOnlyRootFilesystem: true
@@ -139,6 +141,10 @@ spec:
         - name: host-iproute
           hostPath:
             path: /etc/iproute2
+            type: Directory
+        - name: cri
+          hostPath:
+            path: /run/containerd
             type: Directory
       # https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
       # See "special case". This will tolerate everything. Node component should

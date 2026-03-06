@@ -62,6 +62,7 @@ const (
 	VolumeContextKeyDisableMetrics             = "disableMetrics"
 	VolumeContextKeyIdentityPool               = "identityPool"
 	VolumeContextKeyMultiNICIndex              = "multiNICIndex"
+	VolumeContextAutoMultiNIC                  = "auto"
 	VolumeContextEnableCloudProfilerForSidecar = "enableCloudProfilerForSidecar"
 	// Legacy key, kept for backward compatibility
 	//nolint:revive,stylecheck
@@ -111,6 +112,7 @@ type requestArgs struct {
 	optInHostnetworkKSA           bool
 	enableCloudProfilerForSidecar bool
 	multiNICIndex                 int
+	autoNICIndex                  bool
 }
 
 func NewControllerServiceCapability(c csi.ControllerServiceCapability_RPC_Type) *csi.ControllerServiceCapability {
@@ -327,13 +329,17 @@ func parseVolumeAttributes(fuseMountOptions []string, volumeContext map[string]s
 
 	args.multiNICIndex = -1
 	if idxString, found := volumeContext[VolumeContextKeyMultiNICIndex]; found {
-		if idx, err := strconv.Atoi(idxString); err == nil {
-			if idx < 0 {
-				idx = -1
-			}
-			args.multiNICIndex = idx
+		if idxString == VolumeContextAutoMultiNIC {
+			args.autoNICIndex = true
 		} else {
-			return requestArgs{}, fmt.Errorf("volume attribute %v only accepts a valid int value, got %q", VolumeContextKeyMultiNICIndex, idxString)
+		  if idx, err := strconv.Atoi(idxString); err == nil {
+			  if idx < 0 {
+				  idx = -1
+			  }
+			  args.multiNICIndex = idx
+		  } else {
+			  return requestArgs{}, fmt.Errorf("volume attribute %v only accepts a valid int value, got %q", VolumeContextKeyMultiNICIndex, idxString)
+		  }
 		}
 	}
 

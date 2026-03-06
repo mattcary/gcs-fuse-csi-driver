@@ -15,11 +15,6 @@
 
 BINDIR ?= $(shell pwd)/bin
 
-# The various gcloud and kubectl checks can be slow. Setting SKIP_VAR=true when
-# making only targets like driver, sidecar-mounter and webook will speed up your
-# life.
-ifneq ($(SKIP_VAR), true)
-
 export REGISTRY ?= gcr.io/gke-release
 export STAGINGVERSION ?= $(shell git describe --long --tags --match='v*' --dirty 2>/dev/null || git rev-list -n1 HEAD)
 export OVERLAY ?= stable
@@ -27,6 +22,11 @@ export BUILD_GCSFUSE_FROM_SOURCE ?= false
 export GCSFUSE_TAG ?= master
 export BUILD_ARM ?= false
 export SELF_MANAGED_K8S ?= false
+
+# The various gcloud and kubectl checks can be slow. Setting SKIP_VAR=true when
+# making only targets like driver, sidecar-mounter and webook will speed up your
+# life.
+ifneq ($(SKIP_VAR), true)
 
 # Self-Managed / OSS K8s Logic. These match the defaults in cloudbuild-install.yaml for self-managed k8s.
 ifeq ($(SELF_MANAGED_K8S), true)
@@ -75,7 +75,7 @@ ifneq ("$(shell docker buildx build --help | grep 'provenance')", "")
 DOCKER_BUILDX_ARGS += --provenance=false
 endif
 
-DOCKER_BUILDX_ARGS += --quiet
+DOCKER_BUILDX_ARGS += --progress=plain
 
 $(info PROJECT is ${PROJECT})
 $(info CLUSTER_LOCATION is ${CLUSTER_LOCATION})
@@ -255,7 +255,6 @@ build-image-linux-arm64:
 		--tag ${SIDECAR_IMAGE}:${STAGINGVERSION}_linux_arm64 \
 		--platform linux/arm64 \
 		--build-arg TARGETPLATFORM=linux/arm64 .
-
 install:
 	$(MAKE) generate-spec-yaml OVERLAY=${OVERLAY} REGISTRY=${REGISTRY} STAGINGVERSION=${STAGINGVERSION}
 	kubectl apply -f ${BINDIR}/gcs-fuse-csi-driver-specs-generated.yaml

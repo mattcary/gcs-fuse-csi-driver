@@ -20,6 +20,7 @@ package driver
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -317,7 +318,7 @@ func (s *nodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublish
 
 	// Unlike other features, we'll assume multi NIC can be used unless we know for certain we have a version mismatch.
 	canUseMultiNIC := !isManagedSidecarImage(gcsFuseSidecarImage) || s.driver.isSidecarVersionSupportedForGivenFeature(gcsFuseSidecarImage, MultiNICMinVersion)
-	if err := s.setupMultiNIC(&args, pod, canUseMultiNIC); err != nil {
+	if err := s.setupMultiNIC(ctx, &args, targetPath, pod, canUseMultiNIC); err != nil {
 		return nil, err
 	}
 
@@ -453,11 +454,13 @@ func (s *nodeServer) isDirMounted(targetPath string) (bool, error) {
 }
 
 // setupMultiNIC updates args with options for multi NIC configuration.
-func (s *nodeServer) setupMultiNIC(args *requestArgs, pod *corev1.Pod, sidecarSupport bool) error {
-	if args.multiNICIndex < 0 {
+func (s *nodeServer) setupMultiNIC(ctx context.Context, args *requestArgs, targetPath string, pod *corev1.Pod, sidecarSupport bool) error {
+	if args.multiNICIndex < 0 && !args.autoNICIndex {
 		klog.V(4).Infof("No multi NIC to configure")
 		return nil
 	}
+
+	mountName := filepath.Base(filepath.Dir(targetPath))
 
 	if !sidecarSupport {
 		// Error rather than silently ignore to avoid difficult performance regressions.
@@ -465,13 +468,26 @@ func (s *nodeServer) setupMultiNIC(args *requestArgs, pod *corev1.Pod, sidecarSu
 		return fmt.Errorf("multi NIC request, but not supported by gcs fuse sidecar version")
 	}
 
-	device, message, err := GetDeviceForNumaNode(s.nwMgr, args.multiNICIndex)
+	numaIndex := args.multiNICIndex
+	if args.autoNICIndex {
+		var err error
+		numaIndex, err = s.getNumaNodeForMount(ctx, targetPath, pod)
+		if err != nil || numaIndex < 0 {
+			if err == nil {
+				err = fmt.Errorf("No NUMA-preferring container found")
+			}
+			s.driver.RecordEventf(pod, corev1.EventTypeWarning, "MultiNICIgnored", "No automatic NUMA node found for %s, ignoring multi-NIC (%v)", mountName, err)
+			klog.Errorf("No automatic NIC found for %s: %v", mountName, err)
+			return nil // ignore rather than block mount
+		}
+	}
+	device, message, err := GetDeviceForNumaNode(s.nwMgr, numaIndex)
 	if err != nil {
-		s.driver.RecordEventf(pod, corev1.EventTypeWarning, "MultiNICIgnored", "No device found for numa index %d, ignoring multi-NIC (%s): %v", args.multiNICIndex, message, err)
-		klog.Errorf("No device found for numa index %d, ignoring: %s %v", args.multiNICIndex, message, err)
+		s.driver.RecordEventf(pod, corev1.EventTypeWarning, "MultiNICIgnored", "No device found for numa index %d, ignoring multi-NIC for %s (%s): %v", numaIndex, mountName, message, err)
+		klog.Errorf("No device found for numa index %d, ignoring: %s %v", numaIndex, message, err)
 		return nil // just ignore rather than block mount
 	}
-	klog.V(4).Infof("Multi NIC %d chose %s: %s", args.multiNICIndex, device, message)
+	klog.V(4).Infof("Multi NIC %d chose %s for %s: %s", numaIndex, device, mountName, message)
 	source, err := AddSourceRouteForDevice(s.nwMgr, device)
 	if err != nil {
 		s.driver.RecordEventf(pod, corev1.EventTypeWarning, "MultiNICIgnored", "Not able to add source route, ignoring multi-NIC: %v", err)
@@ -481,7 +497,7 @@ func (s *nodeServer) setupMultiNIC(args *requestArgs, pod *corev1.Pod, sidecarSu
 
 	args.fuseMountOptions = joinMountOptions(args.fuseMountOptions, []string{
 		fmt.Sprintf("%s=%s", LocalSocketAddressArg, source),
-		fmt.Sprintf("%s=%d", util.GCSFuseNumaNodeArg, args.multiNICIndex),
+		fmt.Sprintf("%s=%d", util.GCSFuseNumaNodeArg, numaIndex),
 	})
 
 	return nil

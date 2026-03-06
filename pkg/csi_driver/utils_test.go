@@ -776,7 +776,15 @@ func TestParseVolumeAttributes(t *testing.T) {
 			expectedMultiNICIndex: 1,
 		},
 		{
-			name:          "non-integrer value set for VolumeContextKeyMultiNICIndex",
+			name:                  "auto multi-nic index",
+			volumeContext:         map[string]string{VolumeContextKeyMultiNICIndex: "auto"},
+			expectedErr:           false,
+			expectedMountOptions:  []string{},
+			expectMultiNICIndex:   true,
+			expectedMultiNICIndex: -1,
+		},
+		{
+			name:          "non-integer value set for VolumeContextKeyMultiNICIndex",
 			volumeContext: map[string]string{VolumeContextKeyMultiNICIndex: "foo"},
 			expectedErr:   true,
 		},
@@ -809,12 +817,16 @@ func TestParseVolumeAttributes(t *testing.T) {
 			}
 
 			if tc.expectMultiNICIndex {
-				if args.multiNICIndex != tc.expectedMultiNICIndex {
-					t.Errorf("Got multiNICIndex %d, expected %d", args.multiNICIndex, tc.expectedMultiNICIndex)
+				if tc.expectedMultiNICIndex == -1 {
+					if !args.autoNICIndex {
+						t.Errorf("Expected autoNICIndex, did not get it")
+					}
+				} else if args.multiNICIndex != tc.expectedMultiNICIndex || args.autoNICIndex {
+					t.Errorf("Got multiNICIndex %d/%t, expected %d/false", args.multiNICIndex, args.autoNICIndex, tc.expectedMultiNICIndex)
 				}
 			} else {
-				if args.multiNICIndex != -1 {
-					t.Errorf("Got multiNICIndex %d, expected none (-1)", args.multiNICIndex)
+				if args.multiNICIndex != -1 || args.autoNICIndex {
+					t.Errorf("Got multiNICIndex %d/%t, expected none (-1/false)", args.multiNICIndex, args.autoNICIndex)
 				}
 			}
 		})

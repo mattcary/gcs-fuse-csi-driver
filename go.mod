@@ -1,6 +1,6 @@
 module github.com/googlecloudplatform/gcs-fuse-csi-driver
 
-go 1.24.0
+go 1.25.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.8.0
@@ -27,13 +27,14 @@ require (
 	google.golang.org/api v0.247.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20250818200422-3122310a409c
 	google.golang.org/grpc v1.74.2
-	google.golang.org/protobuf v1.36.7
+	google.golang.org/protobuf v1.36.8
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.33.3
 	k8s.io/apimachinery v0.33.3
 	k8s.io/apiserver v0.33.3
 	k8s.io/client-go v0.33.3
+	k8s.io/cri-api v0.35.2
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/mount-utils v0.33.3
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
